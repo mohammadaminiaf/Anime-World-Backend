@@ -9,7 +9,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 SECRET_KEY = "your_secret_key"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 129600
 
 
 def hash_password(password: str):

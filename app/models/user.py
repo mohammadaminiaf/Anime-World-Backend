@@ -22,6 +22,19 @@ class UserDB(Base):
     password = Column(Text, nullable=False)
     is_authenticated = Column(Boolean, default=False)
 
+    # Add the relationship to FavoriteMovie
+    favorite_movies = relationship(
+        "FavoriteMovie",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    
+    viewed_movies = relationship(
+        'ViewedMovie',
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
     # Relationships to ProductsDB and UserImagesDB
     profile_photo = relationship(
         "UserImagesDB",

@@ -10,12 +10,17 @@ from fastapi import UploadFile, File, Form
 from sqlalchemy.orm import Session
 from uuid import uuid4
 from app.utils.upload_file import save_uploaded_file
-from app.utils.auth import hash_password, verify_password, create_access_token, get_current_user
+from app.utils.auth import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    get_current_user,
+)
 
 from app.db.database import get_db
-from app.schemas.users import UserCreate, UserUpdate, Token
 from app.models.user import UserDB, UserImagesDB
-from app.schemas.users import LoginRequest
+from app.schemas.users import UserCreate, Token
+from app.schemas.users import LoginRequest, ChangePassword
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -29,7 +34,7 @@ def index():
 #! Create account
 @router.post("/register", response_model=Token)
 def register(user: UserCreate, db: Session = Depends(get_db)):
-    print('Route Register called')
+    print("Route Register called")
     # Check if username or email already exist
     existing_user = (
         db.query(UserDB)
@@ -119,6 +124,52 @@ def logout():
         "message": "Logout successful",
     }
 
+
+#! Change password
+@router.post("/change-password", response_model=Token)
+def change_password(
+    data: ChangePassword,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = current_user["id"]
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthenticated"
+        )
+
+    user = db.query(UserDB).filter(UserDB.id == user_id).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+        
+    print('Checking password ************************************************************')
+
+    # Verify user's current password is correct
+    if not verify_password(data.old_password, user.password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Your old password is incorrect.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    print('Password successfully checked ************************************************************')
+        
+    user.password = hash_password(data.new_password)
+    db.commit()
+    db.refresh(user)
+    
+    return {
+        "data": {
+            "data": True,    
+        },
+        "access_token": None,
+        "token_type": None,
+        "status_code": 200,
+        "message": "Password changes successfully!",
+    }
 
 #! Update Profile
 @router.post(

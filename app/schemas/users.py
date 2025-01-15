@@ -43,21 +43,11 @@ class UserCreate(BaseModel):
         form_attributes = True
 
 
-class UserUpdate(BaseModel):
-    name: str = Form(...)
-    email: Optional[str] = Form(None)
-    phone: Optional[str] = Form(None)
-    is_authenticated: bool = Form(False)
-    profile_photo: Optional[UploadFile] = File(None)
-
-    class Config:
-        form_attributes = True
-
-
 class Token(BaseModel):
     data: Optional[dict]
     access_token: Optional[str]
     token_type: Optional[str]
+    status_code: Optional[int]
     message: str
 
 
@@ -65,6 +55,12 @@ class Token(BaseModel):
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+
+# Model for change password feature
+class ChangePassword(BaseModel):
+    old_password: str
+    new_password: str
 
 
 class TokenData(BaseModel):

@@ -21,6 +21,9 @@ def save_uploaded_file(file: UploadFile, category: str) -> str:
     full_dir = f'{UPLOADS_DIR}/{category}'
     # Ensure the directory exists
     os.makedirs(full_dir, exist_ok=True)
+    
+    if not file:
+        return
 
     # Generate a unique filename
     unique_filename = f"{uuid4().hex}_{file.filename}"

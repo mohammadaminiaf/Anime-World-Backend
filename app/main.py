@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.db.database import Base, engine
-from app.routers import movies, auth
+from app.routers import movies, auth, users
 
 
 app = FastAPI(title="Anime World")
@@ -25,6 +25,7 @@ Base.metadata.create_all(bind=engine)
 # Include routers
 app.include_router(movies.router, tags=["Movies"])
 app.include_router(auth.router, tags=["Auth"])
+app.include_router(users.router, tags=["Users"])
 
 
 @app.get("/")
