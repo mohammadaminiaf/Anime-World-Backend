@@ -4,6 +4,14 @@ from fastapi.security import (
     OAuth2PasswordRequestForm,
     SecurityScopes,
 )
+
+from app.models.otp import OTP
+from app.utils.send_otp import (
+    generate_otp,
+    send_otp_email,
+    verify_otp_code,
+    check_used_otp,
+)
 import os
 from typing import Optional
 from fastapi import UploadFile, File, Form
@@ -144,8 +152,6 @@ def change_password(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
-        
-    print('Checking password ************************************************************')
 
     # Verify user's current password is correct
     if not verify_password(data.old_password, user.password):
@@ -154,22 +160,127 @@ def change_password(
             detail="Your old password is incorrect.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
-    print('Password successfully checked ************************************************************')
-        
+
     user.password = hash_password(data.new_password)
     db.commit()
     db.refresh(user)
-    
+
     return {
         "data": {
-            "data": True,    
+            "data": True,
         },
         "access_token": None,
         "token_type": None,
         "status_code": 200,
         "message": "Password changes successfully!",
     }
+
+
+#! Send OTP Code to user
+@router.post("/send-otp", response_model=Token)
+async def send_otp(
+    email: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    # Check if email belongs to a user
+    user = db.query(UserDB).filter(UserDB.email == email).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No user found with this email",
+        )
+
+    otp = generate_otp(user.id, db)
+
+    await send_otp_email(email, otp)
+
+    return {
+        "data": {
+            "data": True,
+        },
+        "access_token": None,
+        "token_type": None,
+        "status_code": 200,
+        "message": "OTP sent successfully!",
+    }
+
+
+#! Verify OTP route
+@router.post("/verify-otp", response_model=Token)
+async def verify_otp(
+    otp: str = Form(...),
+    email: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    # Get user by email
+    user = db.query(UserDB).filter(UserDB.email == email).first()
+
+    # Check if email belongs to a user
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No user found with this email",
+        )
+
+    user_id = user.id
+    message = verify_otp_code(user_id, otp, db)
+
+    if message != "":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=message)
+
+    return {
+        "data": {
+            "data": True,
+        },
+        "access_token": None,
+        "token_type": None,
+        "status_code": 200,
+        "message": "OTP verified successfully!",
+    }
+
+
+#! Reset Password (when password is forgotten)
+@router.post("/reset-password", response_model=Token)
+async def reset_password(
+    otp: str = Form(...),
+    email: str = Form(...),
+    new_password: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    # Get user by email
+    user = db.query(UserDB).filter(UserDB.email == email).first()
+
+    # Check if email belongs to a user
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No user found with this email",
+        )
+
+    user_id = user.id
+    message = check_used_otp(user_id, otp, db)
+
+    if message != "":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=message)
+
+    print("Password was verified successfully")
+    print(f"Password: {new_password}")
+
+    user.password = hash_password(new_password)
+    db.commit()
+    db.refresh(user)
+
+    return {
+        "data": {
+            "data": True,
+        },
+        "access_token": None,
+        "token_type": None,
+        "status_code": 200,
+        "message": "Password reset successfully!",
+    }
+
 
 #! Update Profile
 @router.post(
@@ -270,25 +381,6 @@ def delete_user(
     if user_id != current_user["id"]:
         raise HTTPException(status_code=403, detail="You do not own this user")
 
-    # # Delete associated products and media
-    # user_products = db.query(ProductsDB).filter(ProductsDB.user_id == user_id).all()
-    # for product in user_products:
-    #     # Fetch and delete associated media for each product
-    #     product_media = (
-    #         db.query(ProductImagesDB)
-    #         .filter(ProductImagesDB.product_id == product.id)
-    #         .all()
-    #     )
-    #     for media in product_media:
-    #         # Delete the media file (adjust if using cloud storage)
-    #         if os.path.exists(media.image_url):
-    #             os.remove(media.image_url)
-    #         db.delete(media)
-
-    #     # Delete the product itself
-    #     db.delete(product)
-
-    # Delete the user's profile image if exists
     if user.profile_photo and os.path.exists(user.profile_photo.image_url):
         os.remove(user.profile_photo.image_url)
 
@@ -299,7 +391,9 @@ def delete_user(
     db.commit()
 
     return {
-        "data": None,
+        "data": {
+            "data": True,    
+        },
         "access_token": None,
         "token_type": None,
         "status_code": 200,
